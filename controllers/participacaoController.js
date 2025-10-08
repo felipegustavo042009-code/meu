@@ -1,51 +1,52 @@
-const Participacao = require("../models/Participacao");
+const supabase = require('../config/supabase');
 
-exports.createParticipacao = async (req, res) => {
+exports.createAtividade = async (req, res) => {
   try {
-    const newParticipacao = new Participacao(req.body);
-    const participacao = await newParticipacao.save();
-    res.status(201).json(participacao);
-  } catch (err) {
-    res.status(400).json({ message: err.message });
-  }
-};
+    const { sala_id, titulo, descricao, tipo } = req.body;
 
-exports.getParticipacoes = async (req, res) => {
-  try {
-    const participacoes = await Participacao.find().populate("aluno").populate("sala");
-    res.json(participacoes);
-  } catch (err) {
-    res.status(500).json({ message: err.message });
-  }
-};
+    const { data, error } = await supabase
+      .from('atividades')
+      .insert([{ sala_id, titulo, descricao, tipo }])
+      .select()
+      .single();
 
-exports.getParticipacaoById = async (req, res) => {
-  try {
-    const participacao = await Participacao.findById(req.params.id).populate("aluno").populate("sala");
-    if (!participacao) return res.status(404).json({ message: "Participacao not found" });
-    res.json(participacao);
+    if (error) throw error;
+
+    res.status(201).json(data);
   } catch (err) {
     res.status(500).json({ message: err.message });
   }
 };
 
-exports.updateParticipacao = async (req, res) => {
+exports.getAtividadesBySala = async (req, res) => {
   try {
-    const participacao = await Participacao.findByIdAndUpdate(req.params.id, req.body, { new: true });
-    if (!participacao) return res.status(404).json({ message: "Participacao not found" });
-    res.json(participacao);
-  } catch (err) {
-    res.status(400).json({ message: err.message });
-  }
-};
+    const { sala_id } = req.params;
 
-exports.deleteParticipacao = async (req, res) => {
-  try {
-    const participacao = await Participacao.findByIdAndDelete(req.params.id);
-    if (!participacao) return res.status(404).json({ message: "Participacao not found" });
-    res.json({ message: "Participacao deleted" });
+    const { data, error } = await supabase
+      .from('atividades')
+      .select('*')
+      .eq('sala_id', sala_id)
+      .order('created_at', { ascending: false });
+
+    if (error) throw error;
+
+    res.json(data);
   } catch (err) {
     res.status(500).json({ message: err.message });
   }
 };
 
+exports.deleteAtividade = async (req, res) => {
+  try {
+    const { error } = await supabase
+      .from('atividades')
+      .delete()
+      .eq('id', req.params.id);
+
+    if (error) throw error;
+
+    res.json({ message: "Atividade deleted" });
+  } catch (err) {
+    res.status(500).json({ message: err.message });
+  }
+};

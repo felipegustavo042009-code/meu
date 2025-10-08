@@ -1,29 +1,42 @@
-const PerguntaAluno = require("../models/PerguntaAluno");
+const supabase = require('../config/supabase');
 
 exports.createPerguntaAluno = async (req, res) => {
   try {
-    const newPerguntaAluno = new PerguntaAluno(req.body);
-    const perguntaAluno = await newPerguntaAluno.save();
-    res.status(201).json(perguntaAluno);
-  } catch (err) {
-    res.status(400).json({ message: err.message });
-  }
-};
+    const { sala_id, aluno_id, aluno_nome, pergunta } = req.body;
 
-exports.getPerguntasAluno = async (req, res) => {
-  try {
-    const perguntasAluno = await PerguntaAluno.find().populate("aluno").populate("sala");
-    res.json(perguntasAluno);
+    const { data, error } = await supabase
+      .from('perguntas_alunos')
+      .insert([{
+        sala_id,
+        aluno_id,
+        aluno_nome,
+        pergunta,
+        respondida: false
+      }])
+      .select()
+      .single();
+
+    if (error) throw error;
+
+    res.status(201).json(data);
   } catch (err) {
     res.status(500).json({ message: err.message });
   }
 };
 
-exports.getPerguntaAlunoById = async (req, res) => {
+exports.getPerguntasBySala = async (req, res) => {
   try {
-    const perguntaAluno = await PerguntaAluno.findById(req.params.id).populate("aluno").populate("sala");
-    if (!perguntaAluno) return res.status(404).json({ message: "PerguntaAluno not found" });
-    res.json(perguntaAluno);
+    const { sala_id } = req.params;
+
+    const { data, error } = await supabase
+      .from('perguntas_alunos')
+      .select('*')
+      .eq('sala_id', sala_id)
+      .order('created_at', { ascending: false });
+
+    if (error) throw error;
+
+    res.json(data);
   } catch (err) {
     res.status(500).json({ message: err.message });
   }
@@ -31,21 +44,34 @@ exports.getPerguntaAlunoById = async (req, res) => {
 
 exports.updatePerguntaAluno = async (req, res) => {
   try {
-    const perguntaAluno = await PerguntaAluno.findByIdAndUpdate(req.params.id, req.body, { new: true });
-    if (!perguntaAluno) return res.status(404).json({ message: "PerguntaAluno not found" });
-    res.json(perguntaAluno);
-  } catch (err) {
-    res.status(400).json({ message: err.message });
-  }
-};
+    const { data, error } = await supabase
+      .from('perguntas_alunos')
+      .update(req.body)
+      .eq('id', req.params.id)
+      .select()
+      .single();
 
-exports.deletePerguntaAluno = async (req, res) => {
-  try {
-    const perguntaAluno = await PerguntaAluno.findByIdAndDelete(req.params.id);
-    if (!perguntaAluno) return res.status(404).json({ message: "PerguntaAluno not found" });
-    res.json({ message: "PerguntaAluno deleted" });
+    if (error) throw error;
+
+    res.json(data);
   } catch (err) {
     res.status(500).json({ message: err.message });
   }
 };
 
+exports.marcarRespondida = async (req, res) => {
+  try {
+    const { data, error } = await supabase
+      .from('perguntas_alunos')
+      .update({ respondida: true })
+      .eq('id', req.params.id)
+      .select()
+      .single();
+
+    if (error) throw error;
+
+    res.json(data);
+  } catch (err) {
+    res.status(500).json({ message: err.message });
+  }
+};

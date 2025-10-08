@@ -3,9 +3,8 @@ const router = express.Router();
 const perguntaAlunoController = require("../controllers/perguntaAlunoController");
 
 router.post("/", perguntaAlunoController.createPerguntaAluno);
-router.get("/", perguntaAlunoController.getPerguntasAluno);
-router.get("/:id", perguntaAlunoController.getPerguntaAlunoById);
+router.get("/sala/:sala_id", perguntaAlunoController.getPerguntasBySala);
 router.put("/:id", perguntaAlunoController.updatePerguntaAluno);
-router.delete("/:id", perguntaAlunoController.deletePerguntaAluno);
+router.put("/:id/responder", perguntaAlunoController.marcarRespondida);
 
 module.exports = router;
