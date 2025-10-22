@@ -63,18 +63,18 @@ function initializeComponents() {
 
 // SPA Navigation System
 function navigateTo(page) {
-    const paginaAntiga = AppState.currentPage; 
-    
+    const paginaAntiga = AppState.currentPage;
+
     const buttonSair = document.getElementById("sair");
     const spanText = buttonSair.querySelector("span");
     const header = document.querySelector(".header");
 
 
-    if(page == "home" && paginaAntiga != "home" && header.classList.contains("expandido")){
+    if (page == "home" && paginaAntiga != "home" && header.classList.contains("expandido")) {
         exibirMenu();
     }
     if (page != "home") {
-        if(header.classList.contains('expandido')){
+        if (header.classList.contains('expandido')) {
             exibirMenu();
         }
         if (page == "teacher-panel") {
@@ -88,6 +88,18 @@ function navigateTo(page) {
     } else {
         buttonSair.style.display = "none";
     }
+
+    // Na função navigateTo, adicione isto ANTES de loadPageContent(page):
+if (page === 'student-room') {
+    console.log('🚀 Navegando para student-room - forçar inicialização do quiz');
+    // Garantir que o quiz seja inicializado
+    setTimeout(() => {
+        if (window.StudentQuizManager && typeof window.StudentQuizManager.init === 'function') {
+            console.log('🎯 Inicializando quiz via navigateTo');
+            window.StudentQuizManager.init();
+        }
+    }, 1000);
+}
 
     console.log(`Navegando para: ${page}`);
 
@@ -335,6 +347,21 @@ function openManageClasses() {
     }
 }
 
+function openTeacherActivities(){
+    closeAllSections();
+    const section = document.getElementById('teacher-activities-section');
+    if (section) {
+        section.style.display = 'block';
+        section.scrollIntoView({ behavior: 'smooth' });
+        
+        if (window.activitiesSystem) {
+            window.activitiesSystem.listenToActivities();
+        } else {
+            console.error('Sistema de atividades não inicializado');
+        }
+    }
+}
+
 function openTempLink() {
     closeAllSections();
     const section = document.getElementById('temp-link-section');
@@ -477,6 +504,15 @@ function startQuiz(quizId) {
     // Here you would implement the quiz interface
 }
 
+const api = {
+    salas: { getAll: async () => [] },
+    quizzes: { getAll: async () => [] },
+    materiais: { getAll: async () => [] },
+    maosLevantadas: { getAll: async () => [] },
+    presencas: { getAll: async () => [] }
+};
+
+
 // Load mock data
 async function loadMockData() {
     try {
@@ -500,7 +536,7 @@ window.startQuiz = startQuiz;
 
 // Teacher panel functions
 window.openManageClasses = openManageClasses;
-window.openTempLink = openTempLin
+window.openTempLink = openTempLink;
 window.openMaterialUpload = openMaterialUpload;
 window.openAttendanceControl = openAttendanceControl;
 window.openHelpRequests = openHelpRequests;
@@ -907,7 +943,7 @@ window.joinClass = joinClass;
 window.leaveClass = leaveClass;
 window.editClass = editClass;
 window.deleteClass = deleteClass;
-window.generateTempLink = generateTempLin
+window.generateTempLink = generateTempLink;
 window.uploadMaterial = uploadMaterial;
 window.downloadMaterial = downloadMaterial;
 window.addQuestion = addQuestion;
@@ -1019,6 +1055,9 @@ function joinRoomByCode(roomCode = null) {
             hideLoading();
             showToast(error, 'error');
         });
+
+
+    console.log("RoomState depois de entrar:", RoomState);
 }
 
 // QR Scanner Functions
@@ -1054,19 +1093,39 @@ function initializeTeacherPanel() {
     }
 }
 
-function generateNewRoomCode() {
+async function generateNewRoomCode() {
     if (confirm('Gerar um novo código irá desconectar todos os alunos. Continuar?')) {
-        const newCode = RoomManager.createRoom();
-        showToast(`Novo código gerado: ${newCode}`, 'success');
+        try {
+            showLoading(); // Mostra carregando
 
-        // Reset QR code
-        RoomState.qrCodeGenerated = false;
-        const qrContainer = document.getElementById('qr-code-container');
-        if (qrContainer) {
-            qrContainer.innerHTML = '';
+            // Cria uma nova sala e espera o retorno do novo código
+            const newCode = await RoomManager.createRoom();
+
+            // Atualiza o código mostrado na tela
+            const codeElement = document.getElementById('qr-room-code');
+            if (codeElement) codeElement.textContent = newCode;
+
+            // Limpa o container do QR antigo
+            const qrContainer = document.getElementById('qr-code-container');
+            if (qrContainer) qrContainer.innerHTML = '';
+
+            // Marca que ainda não tem QR gerado
+            RoomState.qrCodeGenerated = false;
+
+            // Gera automaticamente o novo QR Code
+            await RoomManager.generateQRCode();
+
+            hideLoading();
+            showToast(`Novo QR Code gerado com sucesso! Código: ${newCode}`, 'success');
+
+        } catch (error) {
+            hideLoading();
+            showToast('Erro ao gerar novo QR Code: ' + error.message, 'error');
+            console.error(error);
         }
     }
 }
+
 
 function generateQRCode() {
     if (!RoomState.roomCode) {
@@ -1100,10 +1159,6 @@ function downloadQRCode() {
     RoomManager.downloadQRCode();
 }
 
-function printQRCode() {
-    RoomManager.printQRCode();
-}
-
 function openConnectedStudents() {
     closeAllSections();
     const section = document.getElementById('connected-students-section');
@@ -1112,27 +1167,94 @@ function openConnectedStudents() {
         section.scrollIntoView({ behavior: 'smooth' });
         loadConnectedStudents();
     }
+    console.log(RoomState.currentRoom);
+
 }
 
-function openActivities() {
+function openStudentActivities() {
     closeAllSections();
-    const section = document.getElementById('activities-section');
+    const section = document.getElementById('student-activities-section');
     if (section) {
         section.style.display = 'block';
         section.scrollIntoView({ behavior: 'smooth' });
-        loadActivities();
+        
+        // ✅ Forçar a atualização das atividades
+        if (window.activitiesSystem) {
+            window.activitiesSystem.listenToActivities();
+        } else {
+            console.error('Sistema de atividades não inicializado');
+            showToast('Erro ao carregar atividades', 'error');
+        }
     }
 }
 
-function openStudentQuestions() {
+function openStudentQuestionModal() {
+    const modal = document.getElementById('student-question-modal');
+    if (modal) {
+        modal.style.display = 'flex';
+    }
+}
+
+function closeStudentQuestionModal() {
+    const modal = document.getElementById('student-question-modal');
+    if (modal) {
+        modal.style.display = 'none';
+    }
+}
+
+// Adiciona comportamento do botão "Enviar Pergunta"
+document.addEventListener('DOMContentLoaded', () => {
+    const submitButton = document.querySelector('[data-action="submit-question"]');
+    if (submitButton) {
+        submitButton.addEventListener('click', () => {
+            const input = document.getElementById('question-input');
+            const question = input?.value.trim();
+
+            if (!question) {
+                showToast('Digite sua pergunta antes de enviar', 'error');
+                return;
+            }
+
+            showToast('Pergunta enviada ao professor!', 'success');
+
+            // Adiciona a pergunta à lista local
+            const list = document.getElementById('student-questions-sent');
+            if (list) {
+                const item = document.createElement('div');
+                item.className = 'sent-question-item';
+                item.innerHTML = `<p>${question}</p>`;
+                list.appendChild(item);
+            }
+
+            // Limpa e fecha modal
+            input.value = '';
+            closeStudentQuestionModal();
+        });
+    }
+});
+
+function openTeacherQuestionsPanel() {
     closeAllSections();
-    const section = document.getElementById('student-questions-section');
+    const section = document.getElementById('teacher-questions-section');
     if (section) {
         section.style.display = 'block';
         section.scrollIntoView({ behavior: 'smooth' });
-        loadStudentQuestions();
+
+        // 🔧 CORREÇÃO: Garantir que o listener seja ativado
+        if (RoomState.roomCode) {
+            loadStudentQuestions();
+        } else {
+            console.error("RoomCode não disponível");
+            showToast('Erro: Sala não carregada', 'error');
+        }
     }
 }
+
+// Torna acessível globalmente
+window.openTeacherQuestionsPanel = openTeacherQuestionsPanel;
+window.openStudentQuestionModal = openStudentQuestionModal;
+window.closeStudentQuestionModal = closeStudentQuestionModal;
+
 
 function endRoom() {
     if (confirm('Tem certeza que deseja encerrar a sala? Todos os alunos serão desconectados.')) {
@@ -1153,7 +1275,7 @@ function markAttendance() {
 }
 
 function raiseHand() {
-    
+
     showToast('Mão levantada! O professor foi notificado.', 'success');
 }
 
@@ -1188,7 +1310,7 @@ function loadConnectedStudents() {
     const studentsList = document.getElementById('connected-students-list');
     if (!studentsList) return;
 
-    const students = RoomState.currentRoom ? RoomState.currentRoom.students : [];
+    const students = RoomState.connectedStudents || [];
 
     if (students.length === 0) {
         studentsList.innerHTML = `
@@ -1200,20 +1322,39 @@ function loadConnectedStudents() {
         return;
     }
 
-    studentsList.innerHTML = students.map(student => `
-        <div class="student-item">
-            <div class="student-info">
-                <i class="fas fa-user-circle"></i>
-                <span class="student-name">${student.name}</span>
-                <span class="join-time">Entrou às ${new Date(student.joinedAt).toLocaleTimeString()}</span>
+    studentsList.innerHTML = students.map(student => {
+        const nome = student.name || student.nome || "Aluno Desconhecido";
+        const joinedAt =
+            student.joinedAt ||
+            student.conectadoEm ||
+            student.criadoEm ||
+            Date.now();
+
+        let joinTime = "Horário não disponível";
+        try {
+            const time = joinedAt?.toDate ? joinedAt.toDate() : new Date(joinedAt);
+            joinTime = time.toLocaleTimeString();
+        } catch {
+            joinTime = "Horário inválido";
+        }
+
+        const presente = student.isPresent ?? student.presente ?? false;
+
+        return `
+            <div class="student-item">
+                <div class="student-info">
+                    <i class="fas fa-user-circle"></i>
+                    <span class="student-name">${nome}</span>
+                    <span class="join-time">Entrou às ${joinTime}</span>
+                </div>
+                <div class="student-status">
+                    <span class="status-badge ${presente ? 'present' : 'absent'}">
+                        ${presente ? 'Presente' : 'Ausente'}
+                    </span>
+                </div>
             </div>
-            <div class="student-status">
-                <span class="status-badge ${student.isPresent ? 'present' : 'absent'}">
-                    ${student.isPresent ? 'Presente' : 'Ausente'}
-                </span>
-            </div>
-        </div>
-    `).join('');
+        `;
+    }).join('');
 }
 
 function loadActivities() {
@@ -1232,15 +1373,179 @@ function loadActivities() {
 }
 
 function loadStudentQuestions() {
-    const questionsList = document.getElementById('student-questions-list');
-    if (!questionsList) return;
+    console.log("🔍 loadStudentQuestions chamado para sala:", RoomState.roomCode);
 
+    const questionsList = document.getElementById('teacher-questions-list');
+    if (!questionsList) {
+        console.error("Elemento teacher-questions-list não encontrado");
+        return;
+    }
+
+    // Verificar se QuestionService existe
+    if (typeof QuestionService === 'undefined') {
+        console.error("QuestionService não está definido");
+        questionsList.innerHTML = `
+            <div class="empty-state error">
+                <i class="fas fa-exclamation-triangle"></i>
+                <p>Erro: Serviço de perguntas não carregado</p>
+                <p class="error-detail">Recarregue a página e tente novamente</p>
+            </div>
+        `;
+        return;
+    }
+
+    if (!RoomState.roomCode) {
+        console.error("RoomCode não disponível");
+        questionsList.innerHTML = `
+            <div class="empty-state">
+                <i class="fas fa-exclamation-triangle"></i>
+                <p>Erro: Código da sala não disponível</p>
+            </div>
+        `;
+        return;
+    }
+
+    // Mostrar loading
     questionsList.innerHTML = `
         <div class="empty-state">
-            <i class="fas fa-question-circle" style="font-size: 3rem; color: #cbd5e1; margin-bottom: 1rem;"></i>
-            <p>Nenhuma pergunta recebida ainda</p>
+            <i class="fas fa-spinner fa-spin"></i>
+            <p>Carregando perguntas...</p>
         </div>
     `;
+
+    try {
+        console.log("📡 Iniciando listener para perguntas...");
+
+        const unsubscribe = QuestionService.listenToQuestions(RoomState.roomCode, (questions) => {
+            console.log("📡 Perguntas recebidas:", questions);
+
+            if (!questions || questions.length === 0) {
+                questionsList.innerHTML = `
+                    <div class="empty-state">
+                        <i class="fas fa-question-circle"></i>
+                        <p>Nenhuma pergunta enviada ainda</p>
+                    </div>
+                `;
+                return;
+            }
+
+            // ORDENAÇÃO: Quem enviou primeiro aparece primeiro (mais antigas no topo)
+            const sortedQuestions = [...questions].sort((a, b) => {
+                try {
+                    const dateA = a.criadaEm?.toDate ? a.criadaEm.toDate() : new Date(a.criadaEm || 0);
+                    const dateB = b.criadaEm?.toDate ? b.criadaEm.toDate() : new Date(b.criadaEm || 0);
+                    return dateA - dateB; // ORDEM CRESCENTE: Mais antigas primeiro
+                } catch (e) {
+                    return 0;
+                }
+            });
+
+            questionsList.innerHTML = sortedQuestions.map(q => {
+                const nome = q.alunoNome || "Aluno";
+                const texto = q.pergunta || "(sem texto)";
+
+                // Tratar a data corretamente
+                let data;
+                let hora = "Horário não disponível";
+                let dataFormatada = "";
+
+                try {
+                    data = q.criadaEm?.toDate ? q.criadaEm.toDate() : new Date(q.criadaEm);
+                    if (!isNaN(data.getTime())) {
+                        hora = data.toLocaleTimeString('pt-BR', { hour: '2-digit', minute: '2-digit' });
+                        dataFormatada = data.toLocaleDateString('pt-BR');
+                    }
+                } catch (e) {
+                    console.warn("Erro ao processar data:", e);
+                }
+
+                return `
+                    <div class="question-item" data-question-id="${q.id}">
+                        <div class="question-header">
+                            <div class="question-student">
+                                <i class="fas fa-user"></i>
+                                <strong>${nome}</strong>
+                            </div>
+                            <div class="question-header-right">
+                                <div class="question-time">
+                                    ${dataFormatada} ${hora}
+                                </div>
+                                <button class="btn-delete-question" onclick="deleteSingleQuestion('${q.id}')" title="Excluir pergunta">
+                                    <i class="fas fa-times"></i>
+                                </button>
+                            </div>
+                        </div>
+                        <p class="question-text">${texto}</p>
+                        <div class="question-actions">
+                            <button class="btn btn-small btn-secondary" onclick="markQuestionAnswered('${q.id}')">
+                                <i class="fas fa-check"></i> Marcar como Respondida
+                            </button>
+                        </div>
+                    </div>
+                `;
+            }).join('');
+        });
+
+        // Armazenar a função unsubscribe para limpeza
+        if (window.questionUnsubscribe) {
+            window.questionUnsubscribe();
+        }
+        window.questionUnsubscribe = unsubscribe;
+
+    } catch (error) {
+        console.error("Erro ao carregar perguntas:", error);
+        questionsList.innerHTML = `
+            <div class="empty-state error">
+                <i class="fas fa-exclamation-triangle"></i>
+                <p>Erro ao carregar perguntas</p>
+                <p class="error-detail">${error.message}</p>
+            </div>
+        `;
+    }
+}
+
+async function deleteSingleQuestion(questionId) {
+    if (confirm('Tem certeza que deseja excluir esta pergunta?')) {
+        showLoading();
+
+        try {
+            // DELETAR A PERGUNTA DO FIREBASE
+            await QuestionService.deleteQuestion(questionId);
+
+            hideLoading();
+            showToast('Pergunta excluída com sucesso!', 'success');
+
+            // REMOVER VISUALMENTE A PERGUNTA DA LISTA
+            const questionElement = document.querySelector(`[data-question-id="${questionId}"]`);
+            if (questionElement) {
+                // Animação de fade out antes de remover
+                questionElement.style.opacity = '0.5';
+                questionElement.style.transition = 'opacity 0.3s ease';
+
+                setTimeout(() => {
+                    questionElement.remove();
+
+                    // VERIFICAR SE A LISTA FICOU VAZIA
+                    const questionsList = document.getElementById('teacher-questions-list');
+                    const remainingQuestions = questionsList.querySelectorAll('.question-item');
+
+                    if (remainingQuestions.length === 0) {
+                        questionsList.innerHTML = `
+                            <div class="empty-state">
+                                <i class="fas fa-question-circle"></i>
+                                <p>Nenhuma pergunta enviada ainda</p>
+                            </div>
+                        `;
+                    }
+                }, 300);
+            }
+
+        } catch (error) {
+            hideLoading();
+            console.error('Erro ao excluir pergunta:', error);
+            showToast('Erro ao excluir pergunta: ' + error.message, 'error');
+        }
+    }
 }
 
 function createActivity() {
@@ -1263,7 +1568,94 @@ navigateTo = function (page) {
     originalNavigateTo(page);
 };
 
+
+// Função para marcar pergunta como respondida
+function markQuestionAnswered(questionId) {
+    if (confirm('Marcar esta pergunta como respondida?')) {
+        // Aqui você implementaria a lógica para atualizar no Firebase
+        showToast('Pergunta marcada como respondida', 'success');
+
+        // Remover visualmente a pergunta
+        const questionElement = document.querySelector(`[data-question-id="${questionId}"]`);
+        if (questionElement) {
+            questionElement.style.opacity = '0.6';
+            questionElement.querySelector('.question-actions').innerHTML = `
+                <span class="answered-badge">
+                    <i class="fas fa-check-circle"></i> Respondida
+                </span>
+            `;
+        }
+    }
+}
+
+async function clearAllQuestions() {
+    if (confirm('Tem certeza que deseja apagar TODAS as perguntas desta sala? Esta ação não pode ser desfeita.')) {
+        showLoading();
+
+        try {
+            // 🔥 BUSCAR TODAS AS PERGUNTAS DA SALA ATUAL
+            const questions = await getQuestionsFromFirebase();
+
+            if (questions.length === 0) {
+                hideLoading();
+                showToast('Não há perguntas para apagar', 'info');
+                return;
+            }
+
+            // 🔥 APAGAR CADA PERGUNTA DO FIREBASE
+            const deletePromises = questions.map(question =>
+                QuestionService.deleteQuestion(question.id)
+            );
+
+            // Aguardar todas as exclusões
+            await Promise.all(deletePromises);
+
+            hideLoading();
+            showToast(`Todas as ${questions.length} perguntas foram apagadas com sucesso!`, 'success');
+
+            // Atualizar a UI
+            const questionsList = document.getElementById('teacher-questions-list');
+            if (questionsList) {
+                questionsList.innerHTML = `
+                    <div class="empty-state">
+                        <i class="fas fa-question-circle"></i>
+                        <p>Nenhuma pergunta enviada ainda</p>
+                    </div>
+                `;
+            }
+
+        } catch (error) {
+            hideLoading();
+            console.error('Erro ao apagar perguntas:', error);
+            showToast('Erro ao apagar perguntas: ' + error.message, 'error');
+        }
+    }
+}
+
+// 🔥 FUNÇÃO AUXILIAR PARA BUSCAR PERGUNTAS DO FIREBASE
+async function getQuestionsFromFirebase() {
+    return new Promise((resolve, reject) => {
+        if (!RoomState.roomCode) {
+            reject(new Error('Código da sala não disponível'));
+            return;
+        }
+
+        // Usar o mesmo listener mas apenas uma vez
+        const unsubscribe = QuestionService.listenToQuestions(RoomState.roomCode, (questions) => {
+            unsubscribe(); // Para imediatamente após receber os dados
+            resolve(questions || []);
+        });
+
+        // Timeout de segurança
+        setTimeout(() => {
+            unsubscribe();
+            resolve([]);
+        }, 5000);
+    });
+}
+
 // Export new functions for global access
+window.clearAllQuestions = clearAllQuestions;
 window.showStudentAccess = showStudentAccess;
 window.hideStudentAccess = hideStudentAccess;
 window.showCodeInput = showCodeInput;
@@ -1274,10 +1666,8 @@ window.startQRScanner = startQRScanner;
 window.generateNewRoomCode = generateNewRoomCode;
 window.generateQRCode = generateQRCode;
 window.downloadQRCode = downloadQRCode;
-window.printQRCode = printQRCode;
 window.openConnectedStudents = openConnectedStudents;
-window.openActivities = openActivities;
-window.openStudentQuestions = openStudentQuestions;
+window.openStudentQuestionModal = openStudentQuestionModal;
 window.endRoom = endRoom;
 window.leaveRoom = leaveRoom;
 window.markAttendance = markAttendance;
@@ -1296,9 +1686,18 @@ function confirmStudentName() {
 
     if (StudentManager.confirmName(name)) {
         // Clear input
-        if (nameInput) nameInput.value = '';
-    }
-}
+        if (nameInput) {
+            nameInput.value = ''
+
+            //tempo de gaantia de carregamento do Mão Levantada e as outras coisas
+            showLoading();
+            setTimeout(() => {
+                hideLoading();
+                closeAllSections();
+            }, 1700);
+        };
+    };
+};
 
 // Handle Enter key in student name input
 document.addEventListener('DOMContentLoaded', () => {
@@ -1330,7 +1729,7 @@ function openQuizManagement() {
 }
 
 function createQuizFromForm() {
-    const title = document.getElementById('quiz-title')?.value.trim();
+    const title = document.getElementById('quiz-question')?.value.trim();
     const question = document.getElementById('quiz-question')?.value.trim();
 
     if (!title || !question) {
@@ -1373,18 +1772,18 @@ function endCurrentQuiz() {
     }
 }
 
-function sairAtividade(){
-        const modal = document.getElementById('create-activity-modal');
-        if (modal) {
-            modal.style.display = 'none';
-            modal.classList.add('active');
-            // Focar no título
-            setTimeout(() => {
-                const titleInput = document.getElementById('activity-title');
-                if (titleInput) titleInput.focus();
-            }, 100);
-        }
+function sairAtividade() {
+    const modal = document.getElementById('create-activity-modal');
+    if (modal) {
+        modal.style.display = 'none';
+        modal.classList.add('active');
+        // Focar no título
+        setTimeout(() => {
+            const titleInput = document.getElementById('activity-title');
+            if (titleInput) titleInput.focus();
+        }, 100);
     }
+}
 
 function viewQuizResults() {
     const results = QuizManager.getResults();
@@ -1524,8 +1923,10 @@ function raiseHand() {
         icone.classList.add("fa-hand-paper");
     }
 
+
     HandRaiseManager.raiseHand(studentName);
 }
+
 
 // Teacher function to open raised hands section
 function openRaisedHands() {
@@ -1534,8 +1935,9 @@ function openRaisedHands() {
     if (section) {
         section.style.display = 'block';
         section.scrollIntoView({ behavior: 'smooth' });
-        HandRaiseManager.updateTeacherHandsDisplay();
     }
+    // Reforça o listener
+    HandRaiseManager.listenToRaisedHands();
 }
 
 // Teacher function to acknowledge a specific hand
@@ -1557,9 +1959,9 @@ function openMaterialsManagement() {
     const section = document.getElementById('materials-management-section');
     if (section) {
         section.style.display = 'flex';
-        section.style.flexDirection = 'column';  
-        section.style.justifyContent = 'space-between';  
-        section.style.alignItems = 'center';  
+        section.style.flexDirection = 'column';
+        section.style.justifyContent = 'space-between';
+        section.style.alignItems = 'center';
         section.scrollIntoView({ behavior: 'smooth' });
         MaterialsManager.updateTeacherMaterialsUI();
     }

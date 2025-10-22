@@ -1,55 +1,55 @@
-// Materials Management System
+import { MaterialService } from './firebase-services.js';
 
-// Global materials state
 const MaterialsState = {
     materials: [],
-    nextId: 1
+    unsubscribers: []
 };
 
-// Materials Manager
 const MaterialsManager = {
-    // Add new material (teacher)
     addMaterial: async (materialData) => {
-        const material = {
-            titulo: materialData.title,
-            descricao: materialData.description || '',
-            tipo: materialData.type, // 'link' or 'file'
-            url: materialData.url,
-            nomeArquivo: materialData.fileName || '',
-            tamanhoArquivo: materialData.fileSize || '',
-            dataAdicao: new Date(),
-            professorId: AppState.user.id // Assuming AppState.user holds the current teacher's ID
-        };
+        const codigoSala = RoomState.roomCode;
+        if (!codigoSala) {
+            showToast('Código da sala não encontrado', 'error');
+            return null;
+        }
 
         try {
-            const createdMaterial = await api.materiais.create(material);
-            MaterialsState.materials.push(createdMaterial);
+            let materialId;
 
-            // Update UI
-            MaterialsManager.updateTeacherMaterialsUI();
-            MaterialsManager.updateStudentMaterialsUI();
+            if (materialData.type === 'link') {
+                materialId = await MaterialService.createMaterialLink(
+                    codigoSala,
+                    materialData.title,
+                    materialData.url,
+                    'link'
+                );
+            } else {
+                const file = materialData.file;
+                if (!file) {
+                    showToast('Arquivo não selecionado', 'error');
+                    return null;
+                }
+
+                materialId = await MaterialService.uploadMaterial(
+                    codigoSala,
+                    materialData.title,
+                    file,
+                    'file'
+                );
+            }
 
             showToast('Material adicionado com sucesso!', 'success');
-            
-            return createdMaterial;
+            return materialId;
         } catch (error) {
             showToast('Erro ao adicionar material: ' + error.message, 'error');
             console.error('Erro ao adicionar material:', error);
-            return null
+            return null;
         }
     },
 
-    // Remove material (teacher)
-
     removeMaterial: async (materialId) => {
         try {
-            await api.materiais.remove(materialId);
-            MaterialsState.materials = MaterialsState.materials.filter(m => m.id !== materialId);
-
-            // Update UI
-            MaterialsManager.updateTeacherMaterialsUI();
-            MaterialsManager.updateStudentMaterialsUI();
-
+            await MaterialService.deleteMaterial(materialId);
             showToast('Material removido com sucesso!', 'info');
         } catch (error) {
             showToast('Erro ao remover material: ' + error.message, 'error');
@@ -57,12 +57,11 @@ const MaterialsManager = {
         }
     },
 
-    // Get material icon based on type
     getMaterialIcon: (material) => {
-        if (material.type === 'link') {
+        if (material.tipo === 'link') {
             return 'fas fa-external-link-alt';
-        } else if (material.fileName) {
-            const extension = material.fileName.split('.').pop().toLowerCase();
+        } else if (material.nomeArquivo) {
+            const extension = material.nomeArquivo.split('.').pop().toLowerCase();
             switch (extension) {
                 case 'pdf':
                     return 'fas fa-file-pdf';
@@ -94,7 +93,6 @@ const MaterialsManager = {
         return 'fas fa-file';
     },
 
-    // Update teacher materials UI
     updateTeacherMaterialsUI: () => {
         const materialsSection = document.getElementById('materials-management-section');
         if (!materialsSection) return;
@@ -108,7 +106,7 @@ const MaterialsManager = {
                     <i class="fas fa-folder-open" style="font-size: 3rem; color: #cbd5e1; margin-bottom: 1rem;"></i>
                     <p>Nenhum material adicionado ainda</p>
                     <button class="btn btn-primary" onclick="showAddMaterialForm()">
-                        <i class="fas fa-plus" id="materialAdicionar" ></i> Adicionar Primeiro Material
+                        <i class="fas fa-plus" id="materialAdicionar"></i> Adicionar Primeiro Material
                     </button>
                 </div>
             `;
@@ -116,7 +114,6 @@ const MaterialsManager = {
         }
 
         materialsList.innerHTML = `
-            
             <div class="materials-grid">
                 ${MaterialsState.materials.map(material => `
                     <div class="material-item">
@@ -125,18 +122,16 @@ const MaterialsManager = {
                                 <i class="${MaterialsManager.getMaterialIcon(material)}"></i>
                             </div>
                             <div class="material-details">
-                                <h4>${material.title}</h4>
-                                <p>${material.description}</p>
-                                ${material.fileName ? `<small>Arquivo: ${material.fileName}</small>` : ''}
-                                ${material.fileSize ? `<small>Tamanho: ${material.fileSize}</small>` : ''}
-                                <small>Adicionado em ${new Date(material.addedAt).toLocaleString()}</small>
+                                <h4>${material.titulo}</h4>
+                                ${material.nomeArquivo ? `<small>Arquivo: ${material.nomeArquivo}</small>` : ''}
+                                <small>Adicionado em ${material.criadoEm ? new Date(material.criadoEm.toDate()).toLocaleString() : ''}</small>
                             </div>
                         </div>
                         <div class="material-actions">
-                            <button class="btn btn-small btn-secondary" onclick="previewMaterial(${material.id})">
+                            <button class="btn btn-small btn-secondary" onclick="previewMaterial('${material.id}')">
                                 <i class="fas fa-eye"></i> Visualizar
                             </button>
-                            <button class="btn btn-small btn-danger" onclick="removeMaterial(${material.id})">
+                            <button class="btn btn-small btn-danger" onclick="removeMaterial('${material.id}')">
                                 <i class="fas fa-trash"></i> Remover
                             </button>
                         </div>
@@ -146,7 +141,6 @@ const MaterialsManager = {
         `;
     },
 
-    // Update student materials UI
     updateStudentMaterialsUI: () => {
         const materialsSection = document.getElementById('student-materials-section');
         if (!materialsSection) return;
@@ -177,14 +171,13 @@ const MaterialsManager = {
                                 <i class="${MaterialsManager.getMaterialIcon(material)}"></i>
                             </div>
                             <div class="material-details">
-                                <h4>${material.title}</h4>
-                                <p>${material.description}</p>
-                                ${material.fileName ? `<small>Arquivo: ${material.fileName}</small>` : ''}
+                                <h4>${material.titulo}</h4>
+                                ${material.nomeArquivo ? `<small>Arquivo: ${material.nomeArquivo}</small>` : ''}
                                 <small>Compartilhado pelo professor</small>
                             </div>
                         </div>
                         <div class="material-actions">
-                            <button class="btn btn-small btn-primary" onclick="accessMaterial(${material.id})">
+                            <button class="btn btn-small btn-primary" onclick="accessMaterial('${material.id}')">
                                 <i class="fas fa-external-link-alt"></i> Acessar
                             </button>
                         </div>
@@ -194,7 +187,6 @@ const MaterialsManager = {
         `;
     },
 
-    // Show add material form
     showAddMaterialForm: () => {
         const materialsSection = document.getElementById('materials-management-section');
         if (!materialsSection) return;
@@ -210,18 +202,13 @@ const MaterialsManager = {
                         <i class="fas fa-times"></i> Cancelar
                     </button>
                 </div>
-                
+
                 <form id="material-form">
                     <div class="form-group">
                         <label for="material-title">Título do Material:</label>
                         <input type="text" id="material-title" placeholder="Ex: Slides da Aula 1" required>
                     </div>
-                    
-                    <div class="form-group">
-                        <label for="material-description">Descrição (opcional):</label>
-                        <textarea id="material-description" placeholder="Breve descrição do material..."></textarea>
-                    </div>
-                    
+
                     <div class="form-group">
                         <label>Tipo de Material:</label>
                         <div class="material-type-options">
@@ -241,18 +228,18 @@ const MaterialsManager = {
                             </div>
                         </div>
                     </div>
-                    
+
                     <div class="form-group" id="link-input-group">
                         <label for="material-url">URL do Material:</label>
                         <input type="url" id="material-url" placeholder="https://exemplo.com/material">
                     </div>
-                    
+
                     <div class="form-group" id="file-input-group" style="display: none;">
                         <label for="material-file">Arquivo:</label>
                         <input type="file" id="material-file" accept=".pdf,.doc,.docx,.ppt,.pptx,.xls,.xlsx,.jpg,.jpeg,.png,.gif,.mp4,.mp3">
                         <small>Formatos suportados: PDF, Word, PowerPoint, Excel, Imagens, Vídeos, Áudios</small>
                     </div>
-                    
+
                     <div class="form-actions">
                         <button type="button" class="btn btn-primary" onclick="addMaterialFromForm()">
                             <i class="fas fa-plus"></i> Adicionar Material
@@ -265,7 +252,6 @@ const MaterialsManager = {
             </div>
         `;
 
-        // Add event listeners for material type change
         const typeRadios = document.querySelectorAll('input[name="material-type"]');
         typeRadios.forEach(radio => {
             radio.addEventListener('change', () => {
@@ -283,41 +269,34 @@ const MaterialsManager = {
         });
     },
 
-    // Initialize materials system
-    init: async () => {
-        try {
-            MaterialsState.materials = await api.materiais.getAll();
-        } catch (error) {
-            console.error("Erro ao carregar materiais:", error);
-        }
+    listenToMaterials: () => {
+        if (!RoomState.roomCode) return;
 
-        // Update UI
-        setTimeout(() => {
+        const unsubscribe = MaterialService.listenToMaterials(RoomState.roomCode, (materials) => {
+            MaterialsState.materials = materials;
             MaterialsManager.updateTeacherMaterialsUI();
             MaterialsManager.updateStudentMaterialsUI();
-        }, 100);
+        });
+
+        MaterialsState.unsubscribers.push(unsubscribe);
     },
 
-    // Clean up when leaving room
+    init: async () => {
+        if (RoomState.roomCode) {
+            MaterialsManager.listenToMaterials();
+        }
+    },
+
     cleanup: () => {
+        MaterialsState.unsubscribers.forEach(unsub => unsub());
+        MaterialsState.unsubscribers = [];
         MaterialsState.materials = [];
-        MaterialsState.nextId = 1;
     }
 };
 
-// Update room end function to clean up materials
-const originalEndRoom = RoomManager.endRoom;
-RoomManager.endRoom = function () {
-    MaterialsManager.cleanup();
-    return originalEndRoom();
-};
-
-// Initialize materials system
 document.addEventListener('DOMContentLoaded', () => {
     MaterialsManager.init();
 });
 
-// Export for global access
 window.MaterialsManager = MaterialsManager;
 window.MaterialsState = MaterialsState;
-

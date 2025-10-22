@@ -513,9 +513,51 @@
     border: 1px solid #e2e8f0;
 }
 
+
+
 .btn-secondary:hover {
     background: #f1f5f9;
     color: #334155;
+}
+
+.btn-delete-question {
+    background: #dc2626;
+    color: white;
+    border: none;
+    border-radius: 50%;
+    width: 30px;
+    height: 30px;
+    display: flex;
+    align-items: center;
+    justify-content: center;
+    cursor: pointer;
+    transition: all 0.2s ease;
+    margin-left: 10px;
+    font-size: 0.875rem;
+}
+
+.btn-delete-question:hover {
+    background: #b91c1c;
+    transform: scale(1.1);
+}
+
+.question-header {
+    display: flex;
+    justify-content: space-between;
+    align-items: flex-start;
+    margin-bottom: 0.5rem;
+}
+
+.question-header-right {
+    display: flex;
+    align-items: center;
+    gap: 10px;
+}
+
+.question-time {
+    font-size: 0.875rem;
+    color: #64748b;
+    white-space: nowrap;
 }
 
 /* Lista de Respostas */
@@ -711,6 +753,7 @@
     display: flex;
     align-items: center;
     gap: 0.5rem;
+    font-size: 1.04rem;
 }
 
 .btn-create:hover {

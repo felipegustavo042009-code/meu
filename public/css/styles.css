@@ -175,6 +175,9 @@ body {
     font-weight: 500;
     color: #dc2626;
 }
+#inicio:checked, #sair:checked {
+    transform: scale(0.9);
+}
 
 /* Main Content */
 .main-content {
@@ -594,7 +597,7 @@ body {
 .header {
     overflow: hidden;
     transition: max-height 0.4s ease;
-    min-height: 70px;
+    min-height: 65px;
 }
 
 
@@ -695,8 +698,6 @@ body {
     }
 
     .nav {
-        opacity: 0;
-        visibility: hidden;
         justify-content: center;
         align-items: center;
         width: 100%;
@@ -704,6 +705,7 @@ body {
         transition: opacity 0.3s ease, transform 0.3s ease;
         transform: translateY(-20px);
         pointer-events: none;
+        z-index: 999;
     }
 
     /* Quando mostrar o menu */
@@ -766,6 +768,17 @@ body {
 
     .section-header h2 {
         font-size: 1.8rem;
+    }
+
+    .raised-hand-item{
+        flex-direction:column;
+    }
+    .hand-actions{
+        display: flex;
+        justify-content: center;
+        align-items: center;
+        flex-direction: row-reverse;
+        gap: 5px;
     }
 }
 

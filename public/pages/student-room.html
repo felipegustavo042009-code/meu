@@ -149,11 +149,6 @@
             </div>
         </div>
         
-        <!-- Perguntas enviadas pelo aluno -->
-        <div class="student-questions-sent" id="student-questions-sent" style="margin-top: 1.5rem;">
-            <h4>Suas perguntas enviadas:</h4>
-            <!-- Lista de perguntas será carregada aqui -->
-        </div>
     </div>
 </div>
 
@@ -187,3 +182,59 @@
     </div>
 </div>
 
+
+
+<script type="module" src="../js/hand-raise.js"></script>
+<script type="module">
+    document.addEventListener('DOMContentLoaded', () => {
+        if (window.HandRaiseManager) {
+            window.HandRaiseManager.init();
+        }
+    });
+
+    window.raiseHand = () => {
+        if (window.HandRaiseManager) {
+            window.HandRaiseManager.raiseHand();
+        }
+    };
+</script>
+<script type="module" src="../js/activities-system.js"></script>
+<script>
+document.addEventListener('DOMContentLoaded', () => {
+    // Inicializar sistema de atividades quando a sala do aluno carregar
+    if (window.activitiesSystem && RoomState.roomCode) {
+        window.activitiesSystem.listenToActivities();
+    }
+});
+</script>
+<script type="module" src="../js/quiz.js"></script>
+<!-- Adicione isto ANTES do fechamento do student-room.html -->
+<script type="module" src="../js/quiz.js"></script>
+<script>
+// Inicialização do quiz para alunos
+function initializeStudentQuizSystem() {
+    console.log('🎯 Tentando inicializar sistema de quiz para aluno...');
+    console.log('📊 RoomState disponível:', !!RoomState);
+    console.log('🎮 StudentQuizManager disponível:', !!window.StudentQuizManager);
+    
+    if (window.StudentQuizManager && RoomState && RoomState.roomCode) {
+        console.log('✅ Condições atendidas, inicializando quiz...');
+        console.log('🏠 RoomCode:', RoomState.roomCode);
+        console.log('👤 StudentId:', RoomState.studentId);
+        console.log('🎓 IsStudent:', RoomState.isStudent);
+        
+        // Inicializar o sistema de quiz
+        window.StudentQuizManager.init();
+    } else {
+        console.error('❌ Condições não atendidas para inicializar quiz');
+        // Tentar novamente após 1 segundo
+        setTimeout(initializeStudentQuizSystem, 1000);
+    }
+}
+
+// Inicializar quando a página carregar
+document.addEventListener('DOMContentLoaded', initializeStudentQuizSystem);
+
+// Também inicializar quando voltar de outras páginas
+setTimeout(initializeStudentQuizSystem, 500);
+</script>

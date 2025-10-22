@@ -101,20 +101,21 @@
     </div>
 
     <!-- Scripts -->
-    <script src="https://cdn.jsdelivr.net/npm/@supabase/supabase-js@2"></script>
-    <script src="https://cdn.jsdelivr.net/npm/qrcode@1.5.3/build/qrcode.min.js"></script>
-    <script src="js/supabase-client.js"></script>
-    <script src="js/realtime.js"></script>
+    <script src="https://cdn.jsdelivr.net/npm/qrcode/build/qrcode.min.js"></script>
+    <script>
+  window.QRCode = QRCode;
+</script>
     <script src="js/utils.js"></script>
     <script src="js/components.js"></script>
-    <script src="js/camera.js"></script>
-    <script src="js/room.js"></script>
-    <script src="js/quiz.js"></script>
-    <script src="js/hand-raise.js"></script>
-    <script src="js/materials.js"></script>
-    <script src="js/questions-system.js"></script>
-    <script src="js/activities-system.js"></script>
-    <script src="js/api.js"></script>
+    <script type="module" src="js/firebase-config.js"></script>
+    <script type="module" src="js/firebase-services.js"></script>
+    <script type="module" src="js/camera.js"></script>
+    <script type="module" src="js/room.js"></script>
+    <script type="module" src="js/quiz.js"></script>
+    <script type="module" src="js/hand-raise.js"></script>
+    <script type="module" src="js/materials.js"></script>
+    <script type="module" src="js/questions-system.js"></script>
+    <script type="module" src="js/activities-system.js"></script>
     <script src="js/app.js"></script>
 </body>
 </html>

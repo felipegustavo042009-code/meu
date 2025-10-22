@@ -1,114 +1,103 @@
-// Quiz Management System
+import { QuizService } from './firebase-services.js';
 
-// Global quiz state
 const QuizState = {
     currentQuiz: null,
     studentAnswers: {},
     quizHistory: [],
-    isQuizActive: false
+    isQuizActive: false,
+    unsubscribers: []
 };
 
-// Quiz Manager for Teachers
-const QuizManager =  {
-    // Create a new quiz
+const QuizManager = {
     createQuiz: async (quizData) => {
-        const quiz = {
-            id: 'quiz_' + Date.now(),
-            title: quizData.title,
-            question: quizData.question,
-            options: quizData.options,
-            correctAnswer: quizData.correctAnswer,
-            allowMultiple: quizData.allowMultiple || false,
-            createdAt: new Date(),
-            responses: {},
-            isActive: true
-        };
-        
+        const codigoSala = RoomState.roomCode;
+        if (!codigoSala) {
+            showToast('Código da sala não encontrado', 'error');
+            return null;
+        }
+
         try {
-            const createdQuiz = await api.quizzes.create(quiz);
-            QuizState.currentQuiz = createdQuiz;
-            QuizState.isQuizActive = true;
-            QuizState.studentAnswers = {};
-            
-            // Update teacher UI
-            QuizManager.updateTeacherQuizUI();
-            
-            // Notify students (via backend/websocket in real app)
-            showToast("Quiz enviado para os alunos!", "success");
-            return createdQuiz;
+            const quizId = await QuizService.createQuiz(
+                codigoSala,
+                quizData.question,
+                quizData.options,
+                quizData.correctAnswer,
+                quizData.tempo || 60
+            );
+
+            showToast('Quiz enviado para os alunos!', 'success');
+            return quizId;
         } catch (error) {
-            showToast("Erro ao criar quiz: " + error.message, "error");
-            console.error("Erro ao criar quiz:", error);
+            showToast('Erro ao criar quiz: ' + error.message, 'error');
+            console.error('Erro ao criar quiz:', error);
             return null;
         }
     },
-    
-    // End current quiz
+
     endQuiz: async () => {
         if (QuizState.currentQuiz) {
             try {
-                await api.quizzes.update(QuizState.currentQuiz.id, { isActive: false });
-                QuizState.currentQuiz.isActive = false;
-                QuizState.isQuizActive = false;
-                
-                // Add to history
+                await QuizService.closeQuiz(QuizState.currentQuiz.id);
+
                 QuizState.quizHistory.push({
                     ...QuizState.currentQuiz,
                     endedAt: new Date(),
-                    totalResponses: Object.keys(QuizState.studentAnswers).length
+                    totalResponses: Object.keys(QuizState.currentQuiz.respostas || {}).length
                 });
-                
+
+                QuizState.currentQuiz = null;
+                QuizState.isQuizActive = false;
+
                 QuizManager.updateTeacherQuizUI();
-                showToast("Quiz encerrado!", "info");
+                showToast('Quiz encerrado!', 'info');
             } catch (error) {
-                showToast("Erro ao encerrar quiz: " + error.message, "error");
-                console.error("Erro ao encerrar quiz:", error);
+                showToast('Erro ao encerrar quiz: ' + error.message, 'error');
+                console.error('Erro ao encerrar quiz:', error);
             }
         }
     },
-    
-    // Get quiz results
+
     getResults: () => {
         if (!QuizState.currentQuiz) return null;
-        
+
+        const respostas = QuizState.currentQuiz.respostas || {};
         const results = {
             quiz: QuizState.currentQuiz,
-            totalStudents: Object.keys(QuizState.studentAnswers).length,
+            totalStudents: Object.keys(respostas).length,
             correctAnswers: 0,
             incorrectAnswers: 0,
             responses: []
         };
-        
-        Object.entries(QuizState.studentAnswers).forEach(([studentId, answer]) => {
-            const isCorrect = answer.selectedOption === QuizState.currentQuiz.correctAnswer;
+
+        Object.entries(respostas).forEach(([studentId, resposta]) => {
+            const isCorrect = resposta.resposta === QuizState.currentQuiz.respostaCorreta;
             if (isCorrect) results.correctAnswers++;
             else results.incorrectAnswers++;
-            
+
             results.responses.push({
-                studentName: answer.studentName,
-                selectedOption: answer.selectedOption,
+                studentName: resposta.nome,
+                selectedOption: resposta.resposta,
                 isCorrect: isCorrect,
-                answeredAt: answer.answeredAt
+                answeredAt: resposta.respondidoEm
             });
         });
-        
+
         return results;
     },
-    
-    // Update teacher quiz UI
+
     updateTeacherQuizUI: () => {
         const quizSection = document.getElementById('quiz-management-section');
         if (!quizSection) return;
-        
+
         const quizContent = quizSection.querySelector('.section-content');
         if (!quizContent) return;
-        
+
         if (QuizState.isQuizActive && QuizState.currentQuiz) {
-            // Show active quiz
+            const respostas = QuizState.currentQuiz.respostas || {};
             quizContent.innerHTML = `
                 <div class="active-quiz">
                     <div class="quiz-header">
-                        <h3>${QuizState.currentQuiz.title}</h3>
+                        <h3>Quiz Ativo</h3>
                         <div class="quiz-actions">
                             <button class="btn btn-secondary" onclick="viewQuizResults()">
                                 <i class="fas fa-chart-bar"></i> Ver Resultados
@@ -119,34 +108,29 @@ const QuizManager =  {
                         </div>
                     </div>
                     <div class="quiz-question">
-                        <strong>Pergunta:</strong> ${QuizState.currentQuiz.question}
+                        <strong>Pergunta:</strong> ${QuizState.currentQuiz.pergunta}
                     </div>
                     <div class="quiz-options">
-                        ${QuizState.currentQuiz.options.map((option, index) => `
-                            <div class="quiz-option-display ${index === QuizState.currentQuiz.correctAnswer ? 'correct-option' : ''}">
+                        ${QuizState.currentQuiz.opcoes.map((option, index) => `
+                            <div class="quiz-option-display ${index === QuizState.currentQuiz.respostaCorreta ? 'correct-option' : ''}">
                                 ${String.fromCharCode(65 + index)}) ${option}
-                                ${index === QuizState.currentQuiz.correctAnswer ? '<i class="fas fa-check correct-icon"></i>' : ''}
+                                ${index === QuizState.currentQuiz.respostaCorreta ? '<i class="fas fa-check correct-icon"></i>' : ''}
                             </div>
                         `).join('')}
                     </div>
                     <div class="quiz-stats">
                         <div class="stat-item">
-                            <span class="stat-number">${Object.keys(QuizState.studentAnswers).length}</span>
+                            <span class="stat-number">${Object.keys(respostas).length}</span>
                             <span class="stat-label">Respostas</span>
                         </div>
                     </div>
                 </div>
             `;
         } else {
-            // Show create quiz form
             quizContent.innerHTML = `
                 <div class="create-quiz-form">
                     <h3>Criar Novo Quiz</h3>
                     <form id="quiz-form">
-                        <div class="form-group">
-                            <label for="quiz-title">Título do Quiz:</label>
-                            <input type="text" id="quiz-title" placeholder="Ex: Quiz de Matemática" required>
-                        </div>
                         <div class="form-group">
                             <label for="quiz-question">Pergunta:</label>
                             <textarea id="quiz-question" placeholder="Digite sua pergunta aqui..." required></textarea>
@@ -194,57 +178,78 @@ const QuizManager =  {
             `;
         }
     },
-    
 
-    
-    // Initialize quiz system
-    init: async () => {
-        // Check for existing quiz from backend
-        try {
-            const activeQuizzes = await api.quizzes.getAllActive();
-            if (activeQuizzes && activeQuizzes.length > 0) {
-                QuizState.currentQuiz = activeQuizzes[0]; // Assuming only one active quiz at a time
-                QuizState.isQuizActive = true;
-                // Fetch student answers for this quiz if needed
-                // QuizState.studentAnswers = await api.respostas.getByQuizId(QuizState.currentQuiz.id);
-            }
-        } catch (error) {
-            console.error("Erro ao carregar quizzes ativos:", error);
+    listenToActiveQuiz: () => {
+        if (!RoomState.roomCode) {
+            console.error('❌ RoomCode não disponível para listenToActiveQuiz');
+            return;
         }
+
+        console.log('🎯 Iniciando listener de quiz para sala:', RoomState.roomCode);
+
+        // Limpar listener anterior se existir
+        const existingIndex = QuizState.unsubscribers.findIndex(unsub =>
+            unsub._name === 'studentActiveQuiz'
+        );
+        if (existingIndex !== -1) {
+            QuizState.unsubscribers[existingIndex]();
+            QuizState.unsubscribers.splice(existingIndex, 1);
+        }
+
+        const unsubscribe = QuizService.listenToActiveQuiz(RoomState.roomCode, (quiz) => {
+            console.log('📡 Quiz recebido no listener:', quiz);
+
+            if (quiz && quiz.ativo) {
+                const respostas = quiz.respostas || {};
+                const studentId = RoomState.studentId;
+
+                console.log('✅ Quiz ativo encontrado. Aluno já respondeu?', !!respostas[studentId]);
+
+                // Mostrar quiz apenas se o aluno ainda não respondeu
+                if (studentId && !respostas[studentId]) {
+                    console.log('🎮 Mostrando quiz para aluno');
+                    StudentQuizManager.showQuiz(quiz);
+                } else if (respostas[studentId]) {
+                    console.log('📝 Aluno já respondeu este quiz');
+                }
+            } else {
+                console.log('📭 Nenhum quiz ativo no momento');
+                QuizState.currentQuiz = null;
+            }
+        });
+
+        // Marcar este listener para identificação
+        unsubscribe._name = 'studentActiveQuiz';
+        QuizState.unsubscribers.push(unsubscribe);
+    },
+
+    init: async () => {
+        if (RoomState.roomCode) {
+            QuizManager.listenToActiveQuiz();
+        }
+    },
+
+    cleanup: () => {
+        QuizState.unsubscribers.forEach(unsub => unsub());
+        QuizState.unsubscribers = [];
+        QuizState.currentQuiz = null;
+        QuizState.isQuizActive = false;
     }
 };
 
-// Quiz Manager for Students
 const StudentQuizManager = {
-    // Check for new quiz from backend
-    checkForNewQuiz: async () => {
-        try {
-            const activeQuizzes = await api.quizzes.getAllActive();
-            if (activeQuizzes && activeQuizzes.length > 0) {
-                const latestQuiz = activeQuizzes[0]; // Assuming only one active quiz at a time
-                const lastAnswered = localStorage.getItem('lastAnsweredQuiz');
-                if (!lastAnswered || lastAnswered !== latestQuiz.id) {
-                    StudentQuizManager.showQuiz(latestQuiz);
-                }
-            }
-        } catch (error) {
-            console.error("Erro ao verificar novos quizzes:", error);
-        }
-    },
-    
-    // Show quiz to student
     showQuiz: (quiz) => {
         const modal = document.getElementById('quiz-modal');
         if (!modal) {
             StudentQuizManager.createQuizModal();
         }
-        
+
         const modalContent = document.querySelector('#quiz-modal .modal-body');
         if (modalContent) {
             modalContent.innerHTML = `
-                <div class="quiz-question">${quiz.question}</div>
+                <div class="quiz-question">${quiz.pergunta}</div>
                 <div class="quiz-options">
-                    ${quiz.options.map((option, index) => `
+                    ${quiz.opcoes.map((option, index) => `
                         <div class="quiz-option" onclick="selectQuizOption(${index})">
                             <input type="radio" name="quiz-answer" value="${index}" id="option-${index}">
                             <label for="option-${index}">${String.fromCharCode(65 + index)}) ${option}</label>
@@ -252,22 +257,18 @@ const StudentQuizManager = {
                     `).join('')}
                 </div>
             `;
-            
-            // Update modal header
+
             const modalHeader = document.querySelector('#quiz-modal .modal-header h3');
             if (modalHeader) {
-                modalHeader.textContent = quiz.title;
+                modalHeader.textContent = 'Quiz';
             }
-            
-            // Show modal
+
             document.getElementById('quiz-modal').style.display = 'flex';
         }
-        
-        // Store current quiz for student
-        sessionStorage.setItem('currentStudentQuiz', JSON.stringify(quiz));
+
+        QuizState.currentQuiz = quiz;
     },
-    
-    // Create quiz modal for students
+
     createQuizModal: () => {
         const modal = document.createElement('div');
         modal.className = 'modal';
@@ -278,7 +279,6 @@ const StudentQuizManager = {
                     <h3>Quiz</h3>
                 </div>
                 <div class="modal-body">
-                    <!-- Quiz content will be inserted here -->
                 </div>
                 <div class="modal-footer">
                     <button class="btn btn-primary" onclick="submitQuizAnswer()">
@@ -287,69 +287,121 @@ const StudentQuizManager = {
                 </div>
             </div>
         `;
-        
+
         document.body.appendChild(modal);
     },
-    
-    // Submit quiz answer
-    submitAnswer: async(selectedOption) => {
-        const quiz = JSON.parse(sessionStorage.getItem('currentStudentQuiz') || '{}');
-        if (!quiz.id) return;
-        
+
+    submitAnswer: async (selectedOption) => {
+        const quiz = QuizState.currentQuiz;
+        if (!quiz) return;
+
         const studentName = StudentManager.getName();
-        if (!studentName) {
-            showToast('Nome do aluno não encontrado', 'error');
+        const studentId = RoomState.studentId;
+
+        if (!studentName || !studentId) {
+            showToast('Informações do aluno não encontradas', 'error');
             return;
         }
 
-        const answer = {
-            quizId: quiz.id,
-            alunoId: StudentManager.getTempId(), // Assuming getTempId returns alunoId
-            opcaoSelecionada: selectedOption,
-            dataResposta: new Date()
-        };
-        
         try {
-            await api.respostas.create(answer);
-            localStorage.setItem('lastAnsweredQuiz', quiz.id);
+            await QuizService.submitAnswer(quiz.id, studentId, studentName, selectedOption);
+
+            const isCorrect = selectedOption === quiz.respostaCorreta;
+            const feedbackMessage = isCorrect ?
+                'Resposta correta! Parabéns!' :
+                `Resposta incorreta. A resposta correta era: ${String.fromCharCode(65 + quiz.respostaCorreta)}) ${quiz.opcoes[quiz.respostaCorreta]}`;
+
+            showToast(feedbackMessage, isCorrect ? 'success' : 'error');
+
+            document.getElementById('quiz-modal').style.display = 'none';
+
+            return true;
         } catch (error) {
-            showToast("Erro ao enviar resposta: " + error.message, "error");
-            console.error("Erro ao enviar resposta:", error);
-            return null;
-        }   
-        // Show feedback
-        const isCorrect = selectedOption === quiz.correctAnswer;
-        const feedbackMessage = isCorrect ? 
-            'Resposta correta! Parabéns!' : 
-            `Resposta incorreta. A resposta correta era: ${String.fromCharCode(65 + quiz.correctAnswer)}) ${quiz.options[quiz.correctAnswer]}`;
-        
-        showToast(feedbackMessage, isCorrect ? 'success' : 'error');
-        
-        // Hide modal
-        document.getElementById('quiz-modal').style.display = 'none';
-        
-        return answer;
+            showToast('Erro ao enviar resposta: ' + error.message, 'error');
+            console.error('Erro ao enviar resposta:', error);
+            return false;
+        }
     },
-    
-    // Initialize student quiz system
-    init: () => {
-        // Check for new quizzes periodically
-        setInterval(() => {
-            if (RoomState.isStudent) {
-                StudentQuizManager.checkForNewQuiz();
+
+    listenToActiveQuiz: () => {
+        if (!RoomState.roomCode) return;
+
+        const unsubscribe = QuizService.listenToActiveQuiz(RoomState.roomCode, (quiz) => {
+            if (quiz && quiz.ativo) {
+                const respostas = quiz.respostas || {};
+                const studentId = RoomState.studentId;
+
+                if (studentId && !respostas[studentId]) {
+                    StudentQuizManager.showQuiz(quiz);
+                }
             }
-        }, 2000);
+        });
+
+        QuizState.unsubscribers.push(unsubscribe);
+    },
+
+    init: () => {
+        console.log('🎮 StudentQuizManager.init() chamado');
+
+        if (RoomState.isStudent && RoomState.roomCode) {
+            console.log('✅ Inicializando listener de quiz ativo');
+            console.log('🏠 Sala:', RoomState.roomCode);
+            console.log('👤 ID do aluno:', RoomState.studentId);
+
+            StudentQuizManager.listenToActiveQuiz();
+        } else {
+            console.log('❌ Condições não atendidas para StudentQuizManager:');
+            console.log('   - É aluno?:', RoomState.isStudent);
+            console.log('   - Tem roomCode?:', !!RoomState.roomCode);
+            console.log('   - Tem studentId?:', !!RoomState.studentId);
+        }
+    },
+};
+
+function initializeQuizSystem() {
+    console.log('🎯 Inicializando sistema de quiz...');
+
+    // Sempre inicializar o QuizManager básico
+    QuizManager.init();
+
+    // Inicialização específica para alunos
+    if (RoomState.isStudent) {
+        console.log('🎓 Inicializando quiz para ALUNO');
+        console.log('📝 RoomCode:', RoomState.roomCode);
+        console.log('👤 StudentId:', RoomState.studentId);
+
+        if (RoomState.roomCode && RoomState.studentId) {
+            StudentQuizManager.init();
+        } else {
+            console.log('⏳ Aguardando RoomState completo...');
+            // Tentar novamente em 1 segundo
+            setTimeout(initializeQuizSystem, 1000);
+        }
+    } else if (RoomState.isTeacher) {
+        console.log('👨‍🏫 Inicializando quiz para PROFESSOR');
+    }
+}
+
+// Inicializar quando o DOM estiver pronto
+document.addEventListener('DOMContentLoaded', function () {
+    console.log('📄 DOM carregado, iniciando quiz system...');
+    setTimeout(initializeQuizSystem, 100);
+});
+
+// Também inicializar quando RoomState mudar (SPA navigation)
+let quizInitialized = false;
+const originalNavigateTo = window.navigateTo;
+window.navigateTo = function (page) {
+    originalNavigateTo(page);
+
+    // Re-inicializar quiz quando navegar para student-room
+    if (page === 'student-room' && !quizInitialized) {
+        setTimeout(initializeQuizSystem, 500);
+        quizInitialized = true;
     }
 };
 
-// Initialize quiz systems
-document.addEventListener('DOMContentLoaded', () => {
-    QuizManager.init();
-    StudentQuizManager.init();
-});
 
-// Export for global access
 window.QuizManager = QuizManager;
 window.StudentQuizManager = StudentQuizManager;
 window.QuizState = QuizState;
-

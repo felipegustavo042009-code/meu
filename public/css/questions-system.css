@@ -382,9 +382,11 @@
 
 .question-text {
     color: #1e293b;
-    line-height: 1.6;
+    line-height: 1.8;
     margin: 0;
     font-size: 1rem;
+    width: 100%;
+    word-wrap: break-word;
 }
 
 .highlight-badge {

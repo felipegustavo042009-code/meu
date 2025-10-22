@@ -1,112 +1,74 @@
-// Hand Raise Management System
+import { StudentService, QuestionService } from './firebase-services.js';
 
-// Global hand raise state
 const HandRaiseState = {
     raisedHands: [],
     studentHandRaised: false,
-    lastHandRaiseTime: null
+    lastHandRaiseTime: null,
+    unsubscribers: []
 };
 
-// Hand Raise Manager
 const HandRaiseManager = {
-    // Student raises hand
-    raiseHand: async (studentName) => {
-        if (!studentName) {
-            showToast('Nome do aluno não encontrado', 'error');
+
+    raiseHand: async () => {
+        const studentId = RoomState.studentId;
+        if (!studentId) {
+            showToast('ID do aluno não encontrado', 'error');
             return false;
         }
-        
-        const alunoId = StudentManager.getTempId();
-        
-        // Check if student already has hand raised
-        const existingHandRaise = HandRaiseState.raisedHands.find(h => h.alunoId === alunoId);
-        
-        if (existingHandRaise) {
-            // Remove existing hand raise
-            try {
-                await api.maosLevantadas.remove(existingHandRaise.id);
-                HandRaiseState.raisedHands = HandRaiseState.raisedHands.filter(h => h.alunoId !== alunoId);
-                HandRaiseState.studentHandRaised = false;
-                
-                showToast('Mão abaixada', 'info');
-                HandRaiseManager.updateStudentHandButton();
-                HandRaiseManager.updateTeacherHandsDisplay(); // Update teacher UI immediately
-                
-                return false;
-            } catch (error) {
-                showToast('Erro ao abaixar a mão: ' + error.message, 'error');
-                console.error('Erro ao abaixar a mão:', error);
-                return false;
-            }
-        } else {
-            // Add new hand raise
-            const handRaise = {
-                alunoId: alunoId,
-                nomeAluno: studentName,
-                dataHora: new Date()
-            };
-            
-            try {
-                const createdHandRaise = await api.maosLevantadas.create(handRaise);
-                HandRaiseState.raisedHands.push(createdHandRaise);
-                HandRaiseState.studentHandRaised = true;
-                HandRaiseState.lastHandRaiseTime = new Date();
-                
-                showToast('Mão levantada! O professor foi notificado.', 'success');
-                HandRaiseManager.updateStudentHandButton();
-                HandRaiseManager.updateTeacherHandsDisplay(); // Update teacher UI immediately
-                
-                return true;
-            } catch (error) {
-                showToast('Erro ao levantar a mão' + error.message, 'error');
-                console.error('Erro ao levantar a mão:', error);
-                return false;
-            }
+
+        // Buscar dados completos do aluno
+        const student = await StudentService.getStudent(studentId);
+        const studentName = student?.nome;
+        if (!studentName) {
+            showToast("Nome do aluno não encontrado", "error");
+            return false;
         }
-    },
-    
-    // Update student hand button state
-    updateStudentHandButton: () => {
-        const handButton = document.querySelector('button[onclick="raiseHand()"]');
-        if (!handButton) return;
-        
-        if (HandRaiseState.studentHandRaised) {
-            handButton.innerHTML = '<i class="fas fa-hand-paper"></i> Abaixar Mão';
-            handButton.className = 'btn btn-danger btn-small';
-        } else {
-            handButton.innerHTML = '<i class="fas fa-hand-paper"></i> Levantar Mão';
-            handButton.className = 'btn btn-warning btn-small';
-        }
-    },
-    
-    // Notify teacher about hand raise changes
-    notifyTeacher: async () => {
+
         try {
-            HandRaiseState.raisedHands = await api.maosLevantadas.getAll();
-            // Update teacher\'s raised hands display
-            HandRaiseManager.updateTeacherHandsDisplay();
-            
-            // Show notification to teacher
-            if (RoomState.isTeacher) {
-                const activeHands = HandRaiseState.raisedHands.length;
-                if (activeHands > 0) {
-                    HandRaiseManager.showTeacherNotification(activeHands);
-                }
-            }
+            const levantada = !HandRaiseState.studentHandRaised;
+            await StudentService.raiseHand(studentId, levantada);
+
+            HandRaiseState.studentHandRaised = levantada;
+            HandRaiseState.lastHandRaiseTime = levantada ? new Date() : null;
+
+            const message = levantada ? 'Mão levantada! O professor foi notificado.' : 'Mão abaixada';
+            const type = levantada ? 'success' : 'info';
+
+            showToast(message, type);
+            HandRaiseManager.updateStudentHandButton();
+
+            return levantada;
         } catch (error) {
-            console.error("Erro ao notificar professor sobre mãos levantadas:", error);
+            showToast('Erro ao levantar a mão: ' + error.message, 'error');
+            console.error('Erro ao levantar a mão:', error);
+            return false;
         }
     },
-    
-    // Show notification to teacher
+
+    updateStudentHandButton: () => {
+        const handButton = document.querySelector('div[onclick="raiseHand()"]');
+        if (!handButton) return;
+
+        const icon = handButton.querySelector('.feature-icon i');
+        const text = handButton.querySelector('h3');
+
+        if (HandRaiseState.studentHandRaised) {
+            icon.className = 'fas fa-hand-paper';
+            text.textContent = 'Abaixar Mão';
+            handButton.classList.add('hand-raised');
+        } else {
+            icon.className = 'fas fa-hand-fist';
+            text.textContent = 'Levantar a Mão';
+            handButton.classList.remove('hand-raised');
+        }
+    },
+
     showTeacherNotification: (count) => {
-        // Remove existing notification
         const existingNotification = document.querySelector('.raised-hand-notification');
         if (existingNotification) {
             existingNotification.remove();
         }
-        
-        // Create new notification
+
         const notification = document.createElement('div');
         notification.className = 'raised-hand-notification';
         notification.innerHTML = `
@@ -115,31 +77,28 @@ const HandRaiseManager = {
                 <span>${count} aluno${count > 1 ? 's' : ''} com a mão levantada</span>
             </div>
         `;
-        
+
         document.body.appendChild(notification);
-        
-        // Auto-remove after 5 seconds
+
         setTimeout(() => {
             if (notification.parentNode) {
                 notification.remove();
             }
         }, 5000);
-        
-        // Click to view details
+
         notification.addEventListener('click', () => {
             openRaisedHands();
             notification.remove();
         });
     },
-    
-    // Update teacher's raised hands display
+
     updateTeacherHandsDisplay: () => {
         const handsSection = document.getElementById('raised-hands-section');
         if (!handsSection) return;
-        
+
         const handsList = handsSection.querySelector('.raised-hands-list');
         if (!handsList) return;
-        
+
         if (HandRaiseState.raisedHands.length === 0) {
             handsList.innerHTML = `
                 <div class="empty-state">
@@ -149,55 +108,39 @@ const HandRaiseManager = {
             `;
             return;
         }
-        
         handsList.innerHTML = HandRaiseState.raisedHands.map(hand => `
             <div class="raised-hand-item">
                 <div class="hand-student-info">
                     <i class="fas fa-hand-paper hand-icon"></i>
-                    <span class="student-name">${hand.studentName}</span>
+                    <span class="student-name">${hand.nome}</span>
                 </div>
                 <div class="hand-actions">
-                    <span class="hand-time">${new Date(hand.raisedAt).toLocaleTimeString()}</span>
-                    <button class="btn btn-small btn-secondary" onclick="acknowledgeHand('${hand.studentId}')">
+                    <span class="hand-time">${hand.maoLevantadaEm ? new Date(hand.maoLevantadaEm.toDate()).toLocaleTimeString() : ''}</span>
+                    <button class="btn btn-small btn-secondary" onclick="acknowledgeHand('${hand.id}')">
                         <i class="fas fa-check"></i> Atender
                     </button>
                 </div>
             </div>
         `).join('');
     },
-    
-    // Acknowledge a raised hand (teacher)
-    acknowledgeHand: async (handId) => {
+
+    acknowledgeHand: async (studentId) => {
         try {
-            await api.maosLevantadas.remove(handId);
-            HandRaiseState.raisedHands = HandRaiseState.raisedHands.filter(h => h.id !== handId);
-            
+            await StudentService.raiseHand(studentId, false);
             showToast('Mão atendida com sucesso!', 'success');
-            HandRaiseManager.updateTeacherHandsDisplay();
-            
-            // If this was the current student, update their button
-            if (StudentManager.getTempId() && HandRaiseState.studentHandRaised) {
-                const studentHand = HandRaiseState.raisedHands.find(h => h.alunoId === StudentManager.getTempId());
-                if (!studentHand) {
-                    HandRaiseState.studentHandRaised = false;
-                    HandRaiseManager.updateStudentHandButton();
-                }
-            }
         } catch (error) {
             showToast('Erro ao atender a mão: ' + error.message, 'error');
             console.error('Erro ao atender a mão:', error);
         }
     },
-    
-    // Clear all raised hands (teacher)
+
     clearAllHands: async () => {
         if (confirm('Tem certeza que deseja limpar todas as mãos levantadas?')) {
             try {
-                await api.maosLevantadas.removeAll();
-                HandRaiseState.raisedHands = [];
-                HandRaiseState.studentHandRaised = false;
-                
-                HandRaiseManager.updateTeacherHandsDisplay();
+                for (const hand of HandRaiseState.raisedHands) {
+                    await StudentService.raiseHand(hand.id, false);
+                }
+
                 showToast('Todas as mãos foram abaixadas', 'info');
             } catch (error) {
                 showToast('Erro ao limpar mãos levantadas: ' + error.message, 'error');
@@ -205,68 +148,71 @@ const HandRaiseManager = {
             }
         }
     },
-    
-    // Initialize hand raise system
-    init: async () => {
-        try {
-            HandRaiseState.raisedHands = await api.maosLevantadas.getAll();
-            const studentId = StudentManager.getTempId();
-            if (studentId) {
-                HandRaiseState.studentHandRaised = HandRaiseState.raisedHands.some(hand => hand.alunoId === studentId);
-            }
-        } catch (error) {
-            console.error("Erro ao carregar mãos levantadas:", error);
+
+    listenToRaisedHands: () => {
+        if (!RoomState.roomCode) {
+            console.warn("RoomCode não disponível para listenToRaisedHands.");
+            return;
         }
-        
-        // Update UI
-        setTimeout(() => {
-            HandRaiseManager.updateStudentHandButton();
+        console.log("listenToRaisedHands ativado para sala:", RoomState.roomCode);
+        // Limpa listeners anteriores para evitar duplicação
+        HandRaiseState.unsubscribers.forEach(unsub => unsub());
+        HandRaiseState.unsubscribers = [];
+
+        const unsubscribe = StudentService.listenToRaisedHands(RoomState.roomCode, (raisedHands) => {
+            const previousCount = HandRaiseState.raisedHands.length;
+            HandRaiseState.raisedHands = raisedHands.sort((a, b) => (a.maoLevantadaEm?.toDate() || 0) - (b.maoLevantadaEm?.toDate() || 0)); // Ordena por tempo
+
             HandRaiseManager.updateTeacherHandsDisplay();
-        }, 100);
+
+            // Mostra notificação apenas se for professor e o número de mãos levantadas aumentou
+            if (RoomState.isTeacher && raisedHands.length > previousCount) {
+                HandRaiseManager.showTeacherNotification(raisedHands.length);
+            }
+        });
+        HandRaiseState.unsubscribers.push(unsubscribe);
     },
-    
-    // Clean up when leaving room
+
+    init: async () => {
+        if (RoomState.isTeacher && RoomState.roomCode) {
+            HandRaiseManager.listenToRaisedHands();
+        }
+
+        if (RoomState.isStudent && RoomState.studentId) {
+            const student = await StudentService.getStudent(RoomState.studentId);
+            if (student) {
+                HandRaiseState.studentHandRaised = student.maoLevantada || false;
+                HandRaiseManager.updateStudentHandButton();
+            }
+        }
+    },
+
     cleanup: () => {
+        HandRaiseState.unsubscribers.forEach(unsub => unsub());
+        HandRaiseState.unsubscribers = [];
         HandRaiseState.raisedHands = [];
         HandRaiseState.studentHandRaised = false;
         HandRaiseState.lastHandRaiseTime = null;
-    }
+    },
+
 };
 
-// Update room leave function to clean up hand raises
-const originalLeaveRoomHandRaise = RoomManager.leaveRoom;
-RoomManager.leaveRoom = function() {
-    if (RoomState.isStudent) {
-        HandRaiseManager.cleanup();
-    }
-    return originalLeaveRoomHandRaise();
-};
+document.addEventListener('DOMContentLoaded', async () => {
+    // Aguarda o RoomState carregar corretamente
+    const waitForRoomState = async () => {
+        return new Promise(resolve => {
+            const check = () => {
+                if (RoomState && RoomState.roomCode) resolve();
+                else setTimeout(check, 300);
+            };
+            check();
+        });
+    };
 
-// Initialize hand raise system
-document.addEventListener('DOMContentLoaded', () => {
+    await waitForRoomState();
+    console.log("RoomState detectado:", RoomState);
+
     HandRaiseManager.init();
-    
-    // Check for raised hands periodically (for teacher)
-    setInterval(async () => {
-        if (RoomState.isTeacher) {
-            try {
-                const hands = await api.maosLevantadas.getAll();
-                if (hands.length !== HandRaiseState.raisedHands.length) {
-                    HandRaiseState.raisedHands = hands;
-                    HandRaiseManager.updateTeacherHandsDisplay();
-                    
-                    if (hands.length > 0) {
-                        HandRaiseManager.showTeacherNotification(hands.length);
-                    }
-                }
-            } catch (error) {
-                console.error("Erro ao buscar mãos levantadas periodicamente:", error);
-            }
-        }
-    }, 3000);
 });
 
-// Export for global access
 window.HandRaiseManager = HandRaiseManager;
-window.HandRaiseState = HandRaiseState;
-

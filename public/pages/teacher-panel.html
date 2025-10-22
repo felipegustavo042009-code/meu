@@ -1,7 +1,7 @@
 <div class="panel-page teacher-panel">
     <div class="panel-header">
         <h1><i class="fas fa-chalkboard-teacher"></i> Painel do Professor</h1>
-        
+
         <!-- Room Code Display -->
         <div class="room-code-display">
             <div class="code-info">
@@ -120,10 +120,7 @@
                         <i class="fas fa-download"></i>
                         Baixar QR Code
                     </button>
-                    <button class="btn btn-secondary" onclick="printQRCode()">
-                        <i class="fas fa-print"></i>
-                        Imprimir
-                    </button>
+
                 </div>
             </div>
         </div>
@@ -181,7 +178,7 @@
                 <div class="section-actions">
                     <button class="btn btn-secondary" onclick="HandRaiseManager.clearAllHands()">
                         <i class="fas fa-eraser"></i>
-                        Limpar Todas
+                        Limpar
                     </button>
                     <button class="btn btn-secondary" onclick="closeAllSections()">
                         <i class="fas fa-times"></i>
@@ -189,9 +186,7 @@
                     </button>
                 </div>
             </div>
-            <div class="raised-hands-list">
-                <!-- Raised hands will be loaded here -->
-            </div>
+            <div class="raised-hands-list"></div>
         </div>
 
         <!-- Teacher Questions Section -->
@@ -201,7 +196,7 @@
                 <div class="questions-actions">
                     <button class="btn-clear" onclick="clearAllQuestions()">
                         <i class="fas fa-trash"></i>
-                        Limpar Todas
+                        Limpar
                     </button>
                     <button class="btn btn-secondary" onclick="closeAllSections()">
                         <i class="fas fa-times"></i>
@@ -226,7 +221,7 @@
                         <i class="fas fa-times"></i> Fechar
                     </button>
                 </div>
-                
+
             </div>
             <div class="materials-list">
                 <!-- Materials will be loaded here -->
@@ -262,32 +257,34 @@
         <form class="create-activity-form" id="create-activity-form">
             <div class="form-group">
                 <label for="activity-title">Título da Atividade *</label>
-                <input type="text" id="activity-title" class="form-input" placeholder="Digite o título da atividade" required>
+                <input type="text" id="activity-title" class="form-input" placeholder="Digite o título da atividade"
+                    required>
             </div>
-            
+
             <div class="form-group">
                 <label for="activity-description">Descrição *</label>
-                <textarea id="activity-description" class="form-textarea" placeholder="Descreva a atividade e as instruções para os alunos" required></textarea>
+                <textarea id="activity-description" class="form-textarea"
+                    placeholder="Descreva a atividade e as instruções para os alunos" required></textarea>
             </div>
-            
+
             <div class="form-row">
                 <div class="form-group">
                     <label for="activity-type">Tipo de Resposta *</label>
                     <select id="activity-type" class="form-select" required>
                         <option value="">Selecione o tipo</option>
                         <option value="text">Apenas Texto</option>
-                        <option value="file">Apenas Arquivo</option>
-                        <option value="both">Texto e Arquivo</option>
+                        <option value="arquivo">Apenas Arquivo</option>
+                        <option value="ambos">Texto e Arquivo</option>
                     </select>
                 </div>
-                
+
             </div>
-            
+
             <div class="form-group">
                 <label for="activity-due-date">Prazo de Entrega (opcional)</label>
                 <input type="datetime-local" id="activity-due-date" class="form-input">
             </div>
-            
+
             <div class="form-actions">
                 <button type="button" class="btn btn-secondary" data-action="close-modal">Cancelar</button>
                 <button type="button" class="btn btn-primary" data-action="save-activity">
@@ -313,3 +310,45 @@
         </div>
     </div>
 </div>
+
+
+
+
+
+<script type="module">
+    import { HandRaiseManager } from '../js/hand-raise.js';
+
+    document.addEventListener('DOMContentLoaded', () => {
+        HandRaiseManager.init();
+    });
+
+    window.HandRaiseManager = HandRaiseManager;
+    window.acknowledgeHand = HandRaiseManager.acknowledgeHand;
+    window.openRaisedHands = () => {
+        document.querySelectorAll('.content-section').forEach(section => section.style.display = 'none');
+        document.getElementById('raised-hands-section').style.display = 'block';
+        HandRaiseManager.updateTeacherHandsDisplay();
+    };
+</script>
+<!-- Adicione este script para importar e inicializar o sistema de atividades -->
+<script type="module">
+    import { ActivitiesSystem } from '../js/activities-system.js';
+    
+    document.addEventListener('DOMContentLoaded', () => {
+        console.log('🎓 Painel do Professor carregado, inicializando atividades...');
+        
+        // Inicializar sistema de atividades
+        if (!window.activitiesSystem) {
+            window.activitiesSystem = new ActivitiesSystem();
+        }
+        
+        // Aguardar RoomState estar pronto e carregar atividades
+        const initActivities = setInterval(() => {
+            if (RoomState && RoomState.roomCode) {
+                clearInterval(initActivities);
+                console.log('🔊 Iniciando listener de atividades para professor');
+                window.activitiesSystem.listenToActivities();
+            }
+        }, 500);
+    });
+</script>

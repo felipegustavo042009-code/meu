@@ -39,7 +39,7 @@
 
 #voltarAluno {
     position: absolute ;
-    top: 15%;
+    top: 19%;
     left: 5%;
 }
 
@@ -112,6 +112,85 @@
     min-height: 32px;
 }
 
+
+.activity-item {
+    background: white;
+    border-radius: 8px;
+    padding: 1.5rem;
+    margin-bottom: 1rem;
+    box-shadow: 0 2px 4px rgba(0,0,0,0.1);
+    border: 1px solid #e1e5e9;
+}
+
+.activity-header {
+    display: flex;
+    justify-content: space-between;
+    align-items: flex-start;
+    margin-bottom: 1rem;
+}
+
+.activity-header h4 {
+    margin: 0;
+    color: #2d3748;
+    font-size: 1.2rem;
+}
+
+.activity-type {
+    background: #e2e8f0;
+    color: #4a5568;
+    padding: 0.25rem 0.75rem;
+    border-radius: 20px;
+    font-size: 0.875rem;
+    font-weight: 500;
+}
+
+.activity-body {
+    margin-bottom: 1rem;
+}
+
+.activity-body p {
+    margin: 0 0 0.5rem 0;
+    color: #4a5568;
+    line-height: 1.5;
+}
+
+.activity-body small {
+    color: #718096;
+    font-size: 0.875rem;
+}
+
+.activity-actions {
+    display: flex;
+    gap: 0.5rem;
+    justify-content: flex-end;
+}
+
+.btn-small {
+    padding: 0.5rem 1rem;
+    font-size: 0.875rem;
+}
+
+.btn-danger {
+    background: #e53e3e;
+    color: white;
+    border: none;
+}
+
+.btn-danger:hover {
+    background: #c53030;
+}
+
+.empty-state {
+    text-align: center;
+    padding: 3rem 2rem;
+    color: #718096;
+}
+
+.empty-state i {
+    font-size: 3rem;
+    color: #cbd5e0;
+    margin-bottom: 1rem;
+}
 /* Forms */
 .form-group {
     margin-bottom: var(--spacing);
@@ -756,13 +835,13 @@
 
 @media (min-width: 1250px) {
     #voltarAluno {
-        top: 15%;
+        top: 19%;
         left: 11%;
     }
 }
 @media (min-width: 1550px) {
     #voltarAluno {
-        top: 15%;
+        top: 19%;
         left: 15%;
     }
 }
